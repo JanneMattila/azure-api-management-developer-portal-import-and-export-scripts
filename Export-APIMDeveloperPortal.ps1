@@ -12,12 +12,16 @@ Param (
 $ErrorActionPreference = "Stop"
 
 "Exporting Azure API Management Developer portal content to: $ExportFolder"
-$mediaFolder = "$ExportFolder\Media"
+$mediaFolder = Join-Path -Path $ExportFolder -ChildPath "Media"
 mkdir $ExportFolder -Force
 mkdir $mediaFolder -Force
 
 $apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
 $tenantAccess = Get-AzApiManagementTenantAccess -Context $apimContext
+if (!$tenantAccess.Enabled) {
+    Write-Warning "Management API is not enabled. Enabling..."
+    Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $true
+}
 
 $managementEndpoint = "https://$APIMName.management.azure-api.net"
 

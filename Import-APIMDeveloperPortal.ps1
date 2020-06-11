@@ -12,8 +12,8 @@ Param (
 $ErrorActionPreference = "Stop"
 
 "Importing Azure API Management Developer portal content from: $ImportFolder"
-$mediaFolder = "$ImportFolder\Media"
-$dataFile = "$ImportFolder\data.json"
+$mediaFolder = (Resolve-Path (Join-Path -Path $ImportFolder -ChildPath "Media")).Path
+$dataFile = Join-Path -Path $ImportFolder -ChildPath "data.json"
 
 if ($false -eq (Test-Path $ImportFolder)) {
     throw "Import folder path was not found: $ImportFolder"
@@ -65,9 +65,9 @@ foreach ($contentTypeItem in $contentTypes.value) {
 
     foreach ($contentItem in $contentType.value) {
         $contentItem.id
-        Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE
+        Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE -SkipHttpErrorCheck
     }
-    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE
+    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE -SkipHttpErrorCheck
 }
 
 "Processing clean up of the target storage"
@@ -120,7 +120,7 @@ foreach ($key in $contentItems.Keys) {
 "Uploading files"
 Get-ChildItem -File -Recurse $mediaFolder `
 | ForEach-Object { 
-    $name = $_.FullName.Replace($mediaFolder, "")
+    $name = $_.FullName.Replace($mediaFolder + "\", "")
     Write-Host "Uploading file: $name"
     Set-AzStorageBlobContent -File $_.FullName -Blob $name -Container $contentContainer
 }
@@ -131,6 +131,7 @@ $publishResponse
 
 if ("OK" -eq $publishResponse) {
     "Import completed"
+    return
 }
 
 throw "Could not publish developer portal"
