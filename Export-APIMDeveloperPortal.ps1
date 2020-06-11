@@ -1,9 +1,9 @@
 Param (
-    [Parameter(HelpMessage = "Resource group of API MAnagement")] 
-    [string] $ResourceGroupName = "apim-rg",
+    [Parameter(Mandatory = $true, HelpMessage = "Resource group of API MAnagement")] 
+    [string] $ResourceGroupName,
 
-    [Parameter(HelpMessage = "API Management Name")] 
-    [string] $APIMName = "demo9001",
+    [Parameter(Mandatory = $true, HelpMessage = "API Management Name")] 
+    [string] $APIMName,
 
     [Parameter(HelpMessage = "Download folder")] 
     [string] $ExportFolder = "$PSScriptRoot\Export"
