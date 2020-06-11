@@ -11,7 +11,7 @@ Param (
 
 $ErrorActionPreference = "Stop"
 
-"Preparing folders to $ExportFolder"
+"Exporting Azure API Management Developer portal content to: $ExportFolder"
 $mediaFolder = "$ExportFolder\Media"
 mkdir $ExportFolder -Force
 mkdir $mediaFolder -Force
