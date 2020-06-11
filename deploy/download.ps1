@@ -3,18 +3,20 @@ Param (
     [string] $ResourceGroupName = "apim-rg",
 
     [Parameter(HelpMessage = "API Management Name")] 
-    [string] $APIMName = "demo9001"
+    [string] $APIMName = "demo9001",
+
+    [Parameter(HelpMessage = "Download folder")] 
+    [string] $DownloadFolder = "$PSScriptRoot\Download"
 )
 
 $ErrorActionPreference = "Stop"
 
+mkdir $DownloadFolder
 $apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
 $tenantAccess = Get-AzApiManagementTenantAccess -Context $apimContext
 
 $portalEndpoint = "https://$APIMName.developer.azure-api.net"
 $managementEndpoint = "https://$APIMName.management.azure-api.net"
-$contentTypesUri = "${managementEndpoint}/contentTypes?api-version=2019-12-01"
-$contentTypesUri
 
 $userId = $tenantAccess.Id
 $userId
@@ -43,3 +45,34 @@ $products
 
 $contentTypes = Invoke-RestMethod -headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
 $contentTypes
+
+$storage = Invoke-RestMethod -headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
+$storage
+$storage.settings.PortalStorageConnectionString
+$connectionString = $storage.settings.PortalStorageConnectionString
+
+$storageContext = New-AzStorageContext -ConnectionString $connectionString
+Set-AzCurrentStorageAccount -Context $storageContext
+
+$contentContainer = "content"
+
+$totalFiles = 0
+$continuationToken = $null
+do {
+    $blobs = Get-AzStorageBlob -Container $contentContainer -MaxCount 1000 -ContinuationToken $continuationToken
+    "Found $($blobs.Count) files in current batch."
+    $blobs
+    $totalFiles += $blobs.Count
+    if (0 -eq $blobs.Length) {
+        break
+    }
+
+    foreach ($blob in $blobs) {
+        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination "$DownloadFolder\$($blob.Name)"
+    }
+    
+    $continuationToken = $blobs[$blobs.Count - 1].ContinuationToken;
+}
+while ($null -ne $continuationToken)
+
+"Downloaded $totalFiles files from container $contentContainer"
