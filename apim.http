@@ -1,0 +1,13 @@
+@apim = https://contoso.azure-api.net
+
+### Invalid user
+POST {{apim}}/users HTTP/1.1
+Content-type: application/json
+
+{
+  "id": 1,
+  "name": "Doe",
+  "address": {
+    "postalCode": "11111"
+  }
+}
