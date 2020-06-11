@@ -6,49 +6,54 @@ Param (
     [string] $APIMName = "demo9001",
 
     [Parameter(HelpMessage = "Download folder")] 
-    [string] $DownloadFolder = "$PSScriptRoot\Download"
+    [string] $ExportFolder = "$PSScriptRoot\Export"
 )
 
 $ErrorActionPreference = "Stop"
 
-mkdir $DownloadFolder
+"Preparing folders to $ExportFolder"
+$mediaFolder = "$ExportFolder\Media"
+mkdir $ExportFolder -Force
+mkdir $mediaFolder -Force
+
 $apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
 $tenantAccess = Get-AzApiManagementTenantAccess -Context $apimContext
 
-$portalEndpoint = "https://$APIMName.developer.azure-api.net"
 $managementEndpoint = "https://$APIMName.management.azure-api.net"
 
 $userId = $tenantAccess.Id
-$userId
 $resourceName = $APIMName + "/" + $userId
-$resourceName
 
 $parameters = @{
     "keyType" = "primary"
     "expiry"  = ('{0:yyyy-MM-ddTHH:mm:ss.000Z}' -f (Get-Date).ToUniversalTime().AddDays(1))
 }
-$parameters
 
 $token = Invoke-AzResourceAction  -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.ApiManagement/service/users" -Action "token" -ResourceName $resourceName -ApiVersion "2019-12-01" -Parameters $parameters -Force
-$token
-
 $headers = @{Authorization = ("SharedAccessSignature {0}" -f $token.value) }
-$headers
 
 $ctx = Get-AzContext
 $ctx.Subscription.Id
 $baseUri = "$managementEndpoint/subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.ApiManagement/service/$APIMName"
 $baseUri
 
-$products = Invoke-RestMethod -headers $headers -Uri "$baseUri/products?api-version=2019-12-01" -Method GET -ContentType "application/json"
-$products
-
+$contentItems = @{ }
 $contentTypes = Invoke-RestMethod -headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
-$contentTypes
+
+foreach ($contentTypeItem in $contentTypes.value) {
+    $contentTypeItem.id
+    $contentType = Invoke-RestMethod -headers $headers -Uri "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET -ContentType "application/json"
+
+    foreach ($contentItem in $contentType.value) {
+        $contentItem.id
+        $contentItems.Add($contentItem.id, $contentItem)    
+    }
+}
+
+$contentItems
+$contentItems | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ExportFolder\data.json"
 
 $storage = Invoke-RestMethod -headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
-$storage
-$storage.settings.PortalStorageConnectionString
 $connectionString = $storage.settings.PortalStorageConnectionString
 
 $storageContext = New-AzStorageContext -ConnectionString $connectionString
@@ -68,7 +73,7 @@ do {
     }
 
     foreach ($blob in $blobs) {
-        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination "$DownloadFolder\$($blob.Name)"
+        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination "$mediaFolder\$($blob.Name)"
     }
     
     $continuationToken = $blobs[$blobs.Count - 1].ContinuationToken;
@@ -76,3 +81,4 @@ do {
 while ($null -ne $continuationToken)
 
 "Downloaded $totalFiles files from container $contentContainer"
+"Export completed"
