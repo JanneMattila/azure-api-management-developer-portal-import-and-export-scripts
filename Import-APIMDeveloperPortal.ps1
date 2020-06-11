@@ -28,7 +28,7 @@ if ($false -eq (Test-Path $dataFile)) {
 }
 
 "Reading $dataFile"
-$contentItems = Get-Content -Raw -Path $dataFile | ConvertFrom-Json -AsHashtable
+$contentItems = Get-Content -Encoding utf8  -Raw -Path $dataFile | ConvertFrom-Json -AsHashtable
 $contentItems | Format-Table -AutoSize
 
 $apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
@@ -114,7 +114,7 @@ foreach ($key in $contentItems.Keys) {
     $contentItem = $contentItems[$key]
     $body = $contentItem | ConvertTo-Json -Depth 100
 
-    Invoke-RestMethod -Body $body -Headers $headers -Uri "$baseUri/$key`?api-version=2019-12-01" -Method PUT -ContentType "application/json"
+    Invoke-RestMethod -Body $body -Headers $headers -Uri "$baseUri/$key`?api-version=2019-12-01" -Method PUT -ContentType "application/json; charset=utf-8"
 }
 
 "Uploading files"
