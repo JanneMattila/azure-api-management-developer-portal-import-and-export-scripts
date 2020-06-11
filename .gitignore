@@ -349,5 +349,5 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 
-# APIM default export folder
-[Ee]xport/
+# APIM default export folders
+[Ee]xport*/
