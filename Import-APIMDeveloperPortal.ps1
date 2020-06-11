@@ -5,16 +5,27 @@ Param (
     [Parameter(Mandatory = $true, HelpMessage = "API Management Name")] 
     [string] $APIMName,
 
-    [Parameter(HelpMessage = "Export folder")] 
-    [string] $ExportFolder = "$PSScriptRoot\Export"
+    [Parameter(HelpMessage = "Import folder")] 
+    [string] $ImportFolder = "$PSScriptRoot\Import"
 )
 
 $ErrorActionPreference = "Stop"
 
-"Exporting Azure API Management Developer portal content to: $ExportFolder"
-$mediaFolder = "$ExportFolder\Media"
-mkdir $ExportFolder -Force
-mkdir $mediaFolder -Force
+"Importing Azure API Management Developer portal content from: $ImportFolder"
+$mediaFolder = "$ImportFolder\Media"
+$dataFile = "$ImportFolder\data.json"
+
+if ($false -eq (Test-Path $ImportFolder)) {
+    throw "Import folder path was not found: $ImportFolder"
+}
+
+if ($false -eq (Test-Path $mediaFolder)) {
+    throw "Media folder path was not found: $mediaFolder"
+}
+
+if ($false -eq (Test-Path $dataFile)) {
+    throw "Data file was not found: $dataFile"
+}
 
 $apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
 $tenantAccess = Get-AzApiManagementTenantAccess -Context $apimContext
