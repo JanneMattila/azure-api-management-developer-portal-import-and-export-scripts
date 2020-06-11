@@ -39,6 +39,7 @@ if (!$tenantAccess.Enabled) {
 }
 
 $managementEndpoint = "https://$APIMName.management.azure-api.net"
+$developerPortalEndpoint = "https://$APIMName.developer.azure-api.net"
 
 $userId = $tenantAccess.Id
 $resourceName = $APIMName + "/" + $userId
@@ -124,5 +125,12 @@ Get-ChildItem -File -Recurse $mediaFolder `
     Set-AzStorageBlobContent -File $_.FullName -Blob $name -Container $contentContainer
 }
 
+"Publishing developer portal"
+$publishResponse = Invoke-RestMethod -Headers $headers -Uri "$developerPortalEndpoint/publish?api-version=2019-12-01" -Method POST
+$publishResponse
 
-"Import completed"
+if ("OK" -eq $publishResponse) {
+    "Import completed"
+}
+
+throw "Could not publish developer portal"
