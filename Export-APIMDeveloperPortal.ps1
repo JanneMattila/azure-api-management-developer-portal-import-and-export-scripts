@@ -38,11 +38,11 @@ $baseUri = "$managementEndpoint/subscriptions/$($ctx.Subscription.Id)/resourceGr
 $baseUri
 
 $contentItems = @{ }
-$contentTypes = Invoke-RestMethod -headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
+$contentTypes = Invoke-RestMethod -Headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
 
 foreach ($contentTypeItem in $contentTypes.value) {
     $contentTypeItem.id
-    $contentType = Invoke-RestMethod -headers $headers -Uri "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET -ContentType "application/json"
+    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET -ContentType "application/json"
 
     foreach ($contentItem in $contentType.value) {
         $contentItem.id
@@ -53,7 +53,7 @@ foreach ($contentTypeItem in $contentTypes.value) {
 $contentItems
 $contentItems | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ExportFolder\data.json"
 
-$storage = Invoke-RestMethod -headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
+$storage = Invoke-RestMethod -Headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
 $connectionString = $storage.settings.PortalStorageConnectionString
 
 $storageContext = New-AzStorageContext -ConnectionString $connectionString

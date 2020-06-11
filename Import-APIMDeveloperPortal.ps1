@@ -27,8 +27,16 @@ if ($false -eq (Test-Path $dataFile)) {
     throw "Data file was not found: $dataFile"
 }
 
+"Reading $dataFile"
+$contentItems = Get-Content -Raw -Path $dataFile | ConvertFrom-Json -AsHashtable
+$contentItems | Format-Table -AutoSize
+
 $apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
 $tenantAccess = Get-AzApiManagementTenantAccess -Context $apimContext
+if (!$tenantAccess.Enabled) {
+    Write-Warning "Management API is not enabled. Enabling..."
+    Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $true
+}
 
 $managementEndpoint = "https://$APIMName.management.azure-api.net"
 
@@ -48,23 +56,21 @@ $ctx.Subscription.Id
 $baseUri = "$managementEndpoint/subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.ApiManagement/service/$APIMName"
 $baseUri
 
-$contentItems = @{ }
-$contentTypes = Invoke-RestMethod -headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
-
+"Processing clean up of the target content"
+$contentTypes = Invoke-RestMethod -Headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
 foreach ($contentTypeItem in $contentTypes.value) {
     $contentTypeItem.id
-    $contentType = Invoke-RestMethod -headers $headers -Uri "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET -ContentType "application/json"
+    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET -ContentType "application/json"
 
     foreach ($contentItem in $contentType.value) {
         $contentItem.id
-        $contentItems.Add($contentItem.id, $contentItem)    
+        Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE
     }
+    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE
 }
 
-$contentItems
-$contentItems | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ExportFolder\data.json"
-
-$storage = Invoke-RestMethod -headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
+"Processing clean up of the target storage"
+$storage = Invoke-RestMethod -Headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
 $connectionString = $storage.settings.PortalStorageConnectionString
 
 $storageContext = New-AzStorageContext -ConnectionString $connectionString
@@ -74,6 +80,8 @@ $contentContainer = "content"
 
 $totalFiles = 0
 $continuationToken = $null
+
+$allBlobs = New-Object Collections.Generic.List[string]
 do {
     $blobs = Get-AzStorageBlob -Container $contentContainer -MaxCount 1000 -ContinuationToken $continuationToken
     "Found $($blobs.Count) files in current batch."
@@ -84,12 +92,37 @@ do {
     }
 
     foreach ($blob in $blobs) {
-        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination "$mediaFolder\$($blob.Name)"
+        $allBlobs.Add($blob.Name)
     }
     
     $continuationToken = $blobs[$blobs.Count - 1].ContinuationToken;
 }
 while ($null -ne $continuationToken)
 
-"Downloaded $totalFiles files from container $contentContainer"
-"Export completed"
+foreach ($blobName in $allBlobs) {
+    "Removing $blobName"
+    Remove-AzStorageBlob -Blob $blobName -Container $contentContainer -Force
+}
+
+"Removed $totalFiles files from container $contentContainer"
+"Clean up completed"
+
+"Uploading content"
+foreach ($key in $contentItems.Keys) {
+    $key
+    $contentItem = $contentItems[$key]
+    $body = $contentItem | ConvertTo-Json -Depth 100
+
+    Invoke-RestMethod -Body $body -Headers $headers -Uri "$baseUri/$key`?api-version=2019-12-01" -Method PUT -ContentType "application/json"
+}
+
+"Uploading files"
+Get-ChildItem -File -Recurse $mediaFolder `
+| ForEach-Object { 
+    $name = $_.FullName.Replace($mediaFolder, "")
+    Write-Host "Uploading file: $name"
+    Set-AzStorageBlobContent -File $_.FullName -Blob $name -Container $contentContainer
+}
+
+
+"Import completed"
