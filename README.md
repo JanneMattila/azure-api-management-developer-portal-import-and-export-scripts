@@ -47,3 +47,64 @@ files from `contosoapi` APIM Developer portal.
 
 This load content and media files from `Import` folder and imports them to `contosoapi`
 APIM Developer portal.
+
+### Example implementation in Azure DevOps
+
+You can implement this process in few different ways but here's one
+example implementation:
+
+- CI for exporting the content from developer portal
+  - Store export as artifact
+- CD for importing the content to developer portal
+
+Idea is that you manually trigger the CI when you want to export
+the content out from the developer portal.
+
+#### Export using CI
+
+![Azure DevOps CI for developer portal export](https://user-images.githubusercontent.com/2357647/84689642-f1a7c980-af49-11ea-9528-d0dd2b501002.png)
+
+![CI PowerShell configuration](https://user-images.githubusercontent.com/2357647/84690137-aa6e0880-af4a-11ea-8a20-a22893086f76.png)
+
+Relevant `yaml` portions of the configuration:
+
+```yaml
+- task: AzurePowerShell@5
+  displayName: 'Azure PowerShell script: FilePath'
+  inputs:
+    azureSubscription: 'AzureDev'
+    ScriptPath: 'Export-APIMDeveloperPortal.ps1'
+    ScriptArguments: '-ResourceGroupName apim-rg -APIMName demo -ExportFolder $(Build.ArtifactStagingDirectory)\Export'
+    azurePowerShellVersion: LatestVersion
+    pwsh: true
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact: Export'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)\Export'
+    ArtifactName: Export
+```
+
+That build should now have artifact correctly stored in it:
+
+![CI artifact](https://user-images.githubusercontent.com/2357647/84690871-da69db80-af4b-11ea-85e8-d0fc5a581df8.png)
+
+#### Import using CD
+
+![Importing the developer portal](https://user-images.githubusercontent.com/2357647/84690353-0a64af00-af4b-11ea-97ee-4f07a2f81fd1.png)
+
+![Release Definition](https://user-images.githubusercontent.com/2357647/84690474-36803000-af4b-11ea-8107-8735da4a6549.png)
+
+Relevant `yaml` portions of the configuration:
+
+```yaml
+- task: AzurePowerShell@5
+  displayName: 'Azure PowerShell script: FilePath'
+  inputs:
+    azureSubscription: 'AzureDev'
+    ScriptPath: '$(System.DefaultWorkingDirectory)/source/Import-APIMDeveloperPortal.ps1'
+    ScriptArguments: '-ResourceGroupName apim-qa-rg -APIMName demo-qa -ImportFolder $(System.DefaultWorkingDirectory)/CI/Export'
+    azurePowerShellVersion: LatestVersion
+    pwsh: true
+    workingDirectory: '$(System.DefaultWorkingDirectory)/CI/Export'
+```
