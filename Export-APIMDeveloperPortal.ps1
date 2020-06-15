@@ -77,7 +77,7 @@ do {
     }
 
     foreach ($blob in $blobs) {
-        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination "$mediaFolder\$($blob.Name)"
+        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination (Join-Path -Path $mediaFolder -ChildPath $blob.Name)
     }
     
     $continuationToken = $blobs[$blobs.Count - 1].ContinuationToken;
