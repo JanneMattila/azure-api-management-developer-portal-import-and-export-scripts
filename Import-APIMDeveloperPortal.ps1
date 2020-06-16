@@ -118,9 +118,10 @@ foreach ($key in $contentItems.Keys) {
 }
 
 "Uploading files"
+$stringIndex = ($mediaFolder + "\").Length
 Get-ChildItem -File -Recurse $mediaFolder `
 | ForEach-Object { 
-    $name = $_.FullName.Replace($mediaFolder + "\", "")
+    $name = $_.FullName.Substring($stringIndex)
     Write-Host "Uploading file: $name"
     Set-AzStorageBlobContent -File $_.FullName -Blob $name -Container $contentContainer
 }
