@@ -108,3 +108,7 @@ Relevant `yaml` portions of the configuration:
     pwsh: true
     workingDirectory: '$(System.DefaultWorkingDirectory)/CI/Export'
 ```
+
+### Credits
+
+Special thanks to [@MiikaAntila](https://github.com/MiikaAntila) for helping out finalizing and testing these scripts.
