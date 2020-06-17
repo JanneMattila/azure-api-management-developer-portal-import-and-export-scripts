@@ -38,8 +38,15 @@ if (!$tenantAccess.Enabled) {
     Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $true
 }
 
-$managementEndpoint = "https://$APIMName.management.azure-api.net"
+$apiManagement = Get-AzApiManagement -ResourceGroupName $ResourceGroupName -Name $APIMName
+$managementEndpoint = $apiManagement.ManagementApiUrl
 $developerPortalEndpoint = "https://$APIMName.developer.azure-api.net"
+
+if ($null -ne $apiManagement.DeveloperPortalHostnameConfiguration) {
+    # Custom domain name defined
+    $developerPortalEndpoint = "https://" + $apiManagement.DeveloperPortalHostnameConfiguration.Hostname
+    $developerPortalEndpoint
+}
 
 $userId = $tenantAccess.Id
 $resourceName = $APIMName + "/" + $userId

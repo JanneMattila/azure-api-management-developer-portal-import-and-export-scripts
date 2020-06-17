@@ -23,7 +23,8 @@ if (!$tenantAccess.Enabled) {
     Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $true
 }
 
-$managementEndpoint = "https://$APIMName.management.azure-api.net"
+$apiManagement = Get-AzApiManagement -ResourceGroupName $ResourceGroupName -Name $APIMName
+$managementEndpoint = $apiManagement.ManagementApiUrl
 
 $userId = $tenantAccess.Id
 $resourceName = $APIMName + "/" + $userId
