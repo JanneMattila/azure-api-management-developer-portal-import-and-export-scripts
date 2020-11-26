@@ -31,15 +31,7 @@ if ($false -eq (Test-Path $dataFile)) {
 $contentItems = Get-Content -Encoding utf8  -Raw -Path $dataFile | ConvertFrom-Json -AsHashtable
 $contentItems | Format-Table -AutoSize
 
-$apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
-$tenantAccess = Get-AzApiManagementTenantAccess -Context $apimContext
-if (!$tenantAccess.Enabled) {
-    Write-Warning "Management API is not enabled. Enabling..."
-    Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $true
-}
-
 $apiManagement = Get-AzApiManagement -ResourceGroupName $ResourceGroupName -Name $APIMName
-$managementEndpoint = $apiManagement.ManagementApiUrl
 $developerPortalEndpoint = "https://$APIMName.developer.azure-api.net"
 
 if ($null -ne $apiManagement.DeveloperPortalHostnameConfiguration) {
@@ -48,43 +40,34 @@ if ($null -ne $apiManagement.DeveloperPortalHostnameConfiguration) {
     $developerPortalEndpoint
 }
 
-$userId = $tenantAccess.Id
-$resourceName = $APIMName + "/" + $userId
-
-$parameters = @{
-    "keyType" = "primary"
-    "expiry"  = ('{0:yyyy-MM-ddTHH:mm:ss.000Z}' -f (Get-Date).ToUniversalTime().AddDays(1))
-}
-
-$token = Invoke-AzResourceAction  -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.ApiManagement/service/users" -Action "token" -ResourceName $resourceName -ApiVersion "2019-12-01" -Parameters $parameters -Force
-$headers = @{Authorization = ("SharedAccessSignature {0}" -f $token.value) }
-
 $ctx = Get-AzContext
 $ctx.Subscription.Id
-$baseUri = "$managementEndpoint/subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.ApiManagement/service/$APIMName"
+
+$baseUri = "subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.ApiManagement/service/$APIMName"
 $baseUri
 
 "Processing clean up of the target content"
-$contentTypes = Invoke-RestMethod -Headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
+$contentTypes = (Invoke-AzRestMethod -Path "$baseUri/contentTypes?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
 foreach ($contentTypeItem in $contentTypes.value) {
     $contentTypeItem.id
-    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET -ContentType "application/json"
+    $contentType = (Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
 
     foreach ($contentItem in $contentType.value) {
         $contentItem.id
-        Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE -SkipHttpErrorCheck
+        Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE
     }
-    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE -SkipHttpErrorCheck
+    Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method DELETE
 }
 
 "Processing clean up of the target storage"
-$storage = Invoke-RestMethod -Headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
-$connectionString = $storage.settings.PortalStorageConnectionString
+$storage = (Invoke-AzRestMethod -Path "$baseUri/portalSettings/mediaContent/listSecrets?api-version=2019-12-01" -Method POST).Content | ConvertFrom-Json
+$containerSasUrl = [System.Uri] $storage.containerSasUrl
+$storageAccountName = $containerSasUrl.Host.Split('.')[0]
+$sasToken = $containerSasUrl.Query
+$contentContainer = $containerSasUrl.GetComponents([UriComponents]::Path, [UriFormat]::SafeUnescaped)
 
-$storageContext = New-AzStorageContext -ConnectionString $connectionString
+$storageContext = New-AzStorageContext -StorageAccountName $storageAccountName -SasToken $sasToken
 Set-AzCurrentStorageAccount -Context $storageContext
-
-$contentContainer = "content"
 
 $totalFiles = 0
 $continuationToken = $null
@@ -121,7 +104,7 @@ foreach ($key in $contentItems.Keys) {
     $contentItem = $contentItems[$key]
     $body = $contentItem | ConvertTo-Json -Depth 100
 
-    Invoke-RestMethod -Body $body -Headers $headers -Uri "$baseUri/$key`?api-version=2019-12-01" -Method PUT -ContentType "application/json; charset=utf-8"
+    Invoke-AzRestMethod -Path "$baseUri/$key`?api-version=2019-12-01" -Method PUT -Payload $body
 }
 
 "Uploading files"
@@ -134,6 +117,26 @@ Get-ChildItem -File -Recurse $mediaFolder `
 }
 
 "Publishing developer portal"
+# Ref: https://github.com/Azure/api-management-developer-portal/issues/953
+# Newer way to do it:
+# $revision = [DateTime]::UtcNow.ToString("yyyyMMddHHmm")
+# $data = @{
+#     description = "Migration $revision"
+#     isCurrent   = $true
+# }
+# $body = ConvertTo-Json $data
+# Invoke-AzRestMethod -Path "$baseUri/portalRevisions/$($revision)?api-version=2019-12-01" -Method PUT -Payload $body
+
+# Old way to do it:
+$resourceName = $APIMName + "/1"
+$parameters = @{
+    "keyType" = "primary"
+}
+
+$body = ConvertTo-Json $parameters
+$token = Invoke-AzResourceAction  -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.ApiManagement/service/users" -Action "token" -ResourceName $resourceName -ApiVersion "2019-12-01" -Parameters $parameters -Force
+$headers = @{Authorization = ("SharedAccessSignature {0}" -f $token.value) }
+
 $publishResponse = Invoke-RestMethod -Headers $headers -Uri "$developerPortalEndpoint/publish?api-version=2019-12-01" -Method POST
 $publishResponse
 

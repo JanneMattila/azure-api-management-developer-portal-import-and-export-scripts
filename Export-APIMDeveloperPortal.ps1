@@ -16,38 +16,17 @@ $mediaFolder = Join-Path -Path $ExportFolder -ChildPath "Media"
 mkdir $ExportFolder -Force
 mkdir $mediaFolder -Force
 
-$apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $APIMName
-$tenantAccess = Get-AzApiManagementTenantAccess -Context $apimContext
-if (!$tenantAccess.Enabled) {
-    Write-Warning "Management API is not enabled. Enabling..."
-    Set-AzApiManagementTenantAccess -Context $apimContext -Enabled $true
-}
-
-$apiManagement = Get-AzApiManagement -ResourceGroupName $ResourceGroupName -Name $APIMName
-$managementEndpoint = $apiManagement.ManagementApiUrl
-
-$userId = $tenantAccess.Id
-$resourceName = $APIMName + "/" + $userId
-
-$parameters = @{
-    "keyType" = "primary"
-    "expiry"  = ('{0:yyyy-MM-ddTHH:mm:ss.000Z}' -f (Get-Date).ToUniversalTime().AddDays(1))
-}
-
-$token = Invoke-AzResourceAction  -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.ApiManagement/service/users" -Action "token" -ResourceName $resourceName -ApiVersion "2019-12-01" -Parameters $parameters -Force
-$headers = @{Authorization = ("SharedAccessSignature {0}" -f $token.value) }
-
 $ctx = Get-AzContext
 $ctx.Subscription.Id
-$baseUri = "$managementEndpoint/subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.ApiManagement/service/$APIMName"
+$baseUri = "subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.ApiManagement/service/$APIMName"
 $baseUri
 
 $contentItems = @{ }
-$contentTypes = Invoke-RestMethod -Headers $headers -Uri "$baseUri/contentTypes?api-version=2019-12-01" -Method GET -ContentType "application/json"
+$contentTypes = (Invoke-AzRestMethod -Path "$baseUri/contentTypes?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
 
 foreach ($contentTypeItem in $contentTypes.value) {
     $contentTypeItem.id
-    $contentType = Invoke-RestMethod -Headers $headers -Uri "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET -ContentType "application/json"
+    $contentType = (Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
 
     foreach ($contentItem in $contentType.value) {
         $contentItem.id
@@ -58,13 +37,14 @@ foreach ($contentTypeItem in $contentTypes.value) {
 $contentItems
 $contentItems | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ExportFolder\data.json"
 
-$storage = Invoke-RestMethod -Headers $headers -Uri "$baseUri/tenant/settings?api-version=2019-12-01" -Method GET -ContentType "application/json"
-$connectionString = $storage.settings.PortalStorageConnectionString
+$storage = (Invoke-AzRestMethod -Path "$baseUri/portalSettings/mediaContent/listSecrets?api-version=2019-12-01" -Method POST).Content | ConvertFrom-Json
+$containerSasUrl = [System.Uri] $storage.containerSasUrl
+$storageAccountName = $containerSasUrl.Host.Split('.')[0]
+$sasToken = $containerSasUrl.Query
+$contentContainer = $containerSasUrl.GetComponents([UriComponents]::Path, [UriFormat]::SafeUnescaped)
 
-$storageContext = New-AzStorageContext -ConnectionString $connectionString
+$storageContext = New-AzStorageContext -StorageAccountName $storageAccountName -SasToken $sasToken
 Set-AzCurrentStorageAccount -Context $storageContext
-
-$contentContainer = "content"
 
 $totalFiles = 0
 $continuationToken = $null
