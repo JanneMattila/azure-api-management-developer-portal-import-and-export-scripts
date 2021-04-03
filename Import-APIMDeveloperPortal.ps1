@@ -117,30 +117,17 @@ Get-ChildItem -File -Recurse $mediaFolder `
 }
 
 "Publishing developer portal"
-# Ref: https://github.com/Azure/api-management-developer-portal/issues/953
-# Newer way to do it:
-# $revision = [DateTime]::UtcNow.ToString("yyyyMMddHHmm")
-# $data = @{
-#     description = "Migration $revision"
-#     isCurrent   = $true
-# }
-# $body = ConvertTo-Json $data
-# Invoke-AzRestMethod -Path "$baseUri/portalRevisions/$($revision)?api-version=2019-12-01" -Method PUT -Payload $body
-
-# Old way to do it:
-$resourceName = $APIMName + "/1"
-$parameters = @{
-    "keyType" = "primary"
+$revision = [DateTime]::UtcNow.ToString("yyyyMMddHHmm")
+$data = @{
+    description = "Migration $revision"
+    isCurrent   = $true
+    properties  = @{}
 }
-
-$body = ConvertTo-Json $parameters
-$token = Invoke-AzResourceAction  -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.ApiManagement/service/users" -Action "token" -ResourceName $resourceName -ApiVersion "2019-12-01" -Parameters $parameters -Force
-$headers = @{Authorization = ("SharedAccessSignature {0}" -f $token.value) }
-
-$publishResponse = Invoke-RestMethod -Headers $headers -Uri "$developerPortalEndpoint/publish?api-version=2019-12-01" -Method POST
+$body = ConvertTo-Json $data
+$publishResponse = Invoke-AzRestMethod -Path "$baseUri/portalRevisions/$($revision)?api-version=2019-12-01" -Method PUT -Payload $body
 $publishResponse
 
-if ("OK" -eq $publishResponse) {
+if (202 -eq $publishResponse.StatusCode) {
     "Import completed"
     return
 }
