@@ -119,9 +119,10 @@ Get-ChildItem -File -Recurse $mediaFolder `
 "Publishing developer portal"
 $revision = [DateTime]::UtcNow.ToString("yyyyMMddHHmm")
 $data = @{
-    description = "Migration $revision"
-    isCurrent   = $true
-    properties  = @{}
+    properties  = @{
+        description = "Migration $revision"
+        isCurrent   = $true
+    }
 }
 $body = ConvertTo-Json $data
 $publishResponse = Invoke-AzRestMethod -Path "$baseUri/portalRevisions/$($revision)?api-version=2019-12-01" -Method PUT -Payload $body
