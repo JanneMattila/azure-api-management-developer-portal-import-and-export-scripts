@@ -12,19 +12,21 @@ Param (
 $ErrorActionPreference = "Stop"
 
 "Importing Azure API Management Developer portal content from: $ImportFolder"
-$mediaFolder = (Resolve-Path (Join-Path -Path $ImportFolder -ChildPath "Media")).Path
+$ImportFolder = (Resolve-Path $ImportFolder).Path
+$mediaFolder = Join-Path -Path $ImportFolder -ChildPath "Media"
 $dataFile = Join-Path -Path $ImportFolder -ChildPath "data.json"
 
 if ($false -eq (Test-Path $ImportFolder)) {
     throw "Import folder path was not found: $ImportFolder"
 }
 
-if ($false -eq (Test-Path $mediaFolder)) {
-    throw "Media folder path was not found: $mediaFolder"
-}
-
 if ($false -eq (Test-Path $dataFile)) {
     throw "Data file was not found: $dataFile"
+}
+
+if (-not (Test-Path -Path $mediaFolder)) {
+    New-Item -ItemType "Directory" -Path $mediaFolder -Force
+    Write-Warning "Media folder $mediaFolder was not found but it was created."
 }
 
 "Reading $dataFile"
@@ -119,7 +121,7 @@ Get-ChildItem -File -Recurse $mediaFolder `
 "Publishing developer portal"
 $revision = [DateTime]::UtcNow.ToString("yyyyMMddHHmm")
 $data = @{
-    properties  = @{
+    properties = @{
         description = "Migration $revision"
         isCurrent   = $true
     }

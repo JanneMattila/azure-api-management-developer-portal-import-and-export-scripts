@@ -13,8 +13,9 @@ $ErrorActionPreference = "Stop"
 
 "Exporting Azure API Management Developer portal content to: $ExportFolder"
 $mediaFolder = Join-Path -Path $ExportFolder -ChildPath "Media"
-mkdir $ExportFolder -Force
-mkdir $mediaFolder -Force
+
+New-Item -ItemType "Directory" -Path $ExportFolder -Force
+New-Item -ItemType "Directory" -Path $mediaFolder -Force
 
 $ctx = Get-AzContext
 $ctx.Subscription.Id
@@ -58,7 +59,12 @@ do {
     }
 
     foreach ($blob in $blobs) {
-        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination (Join-Path -Path $mediaFolder -ChildPath $blob.Name)
+        $targetFile = Join-Path -Path $mediaFolder -ChildPath $blob.Name
+        $targetFolder = Split-Path -Path $targetFile -Parent
+        if (-not (Test-Path -Path $targetFolder)) {
+            New-Item -ItemType "Directory" -Path $targetFolder -Force
+        }
+        Get-AzStorageBlobContent -Blob $blob.Name -Container $contentContainer -Destination $targetFile
     }
     
     $continuationToken = $blobs[$blobs.Count - 1].ContinuationToken;
