@@ -10,6 +10,7 @@ Param (
 )
 
 $ErrorActionPreference = "Stop"
+$apiVersion = "2024-05-01"
 
 "Importing Azure API Management Developer portal content from: $ImportFolder"
 $ImportFolder = (Resolve-Path $ImportFolder).Path
@@ -49,20 +50,20 @@ $baseUri = "subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupN
 $baseUri
 
 "Processing clean up of the target content"
-$contentTypes = (Invoke-AzRestMethod -Path "$baseUri/contentTypes?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
+$contentTypes = (Invoke-AzRestMethod -Path "$baseUri/contentTypes?api-version=$apiVersion" -Method GET).Content | ConvertFrom-Json
 foreach ($contentTypeItem in $contentTypes.value) {
     $contentTypeItem.id
-    $contentType = (Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
+    $contentType = (Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=$apiVersion" -Method GET).Content | ConvertFrom-Json
 
     foreach ($contentItem in $contentType.value) {
         $contentItem.id
-        Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)?api-version=2019-12-01" -Method DELETE
+        Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)?api-version=$apiVersion" -Method DELETE
     }
-    Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method DELETE
+    Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=$apiVersion" -Method DELETE
 }
 
 "Processing clean up of the target storage"
-$storage = (Invoke-AzRestMethod -Path "$baseUri/portalSettings/mediaContent/listSecrets?api-version=2019-12-01" -Method POST).Content | ConvertFrom-Json
+$storage = (Invoke-AzRestMethod -Path "$baseUri/portalSettings/mediaContent/listSecrets?api-version=$apiVersion" -Method POST).Content | ConvertFrom-Json
 $containerSasUrl = [System.Uri] $storage.containerSasUrl
 $storageAccountName = $containerSasUrl.Host.Split('.')[0]
 $sasToken = $containerSasUrl.Query
@@ -106,7 +107,7 @@ foreach ($key in $contentItems.Keys) {
     $contentItem = $contentItems[$key]
     $body = $contentItem | ConvertTo-Json -Depth 100
 
-    Invoke-AzRestMethod -Path "$baseUri/$key`?api-version=2019-12-01" -Method PUT -Payload $body
+    Invoke-AzRestMethod -Path "$baseUri/$key`?api-version=$apiVersion" -Method PUT -Payload $body
 }
 
 "Uploading files"
@@ -127,7 +128,7 @@ $data = @{
     }
 }
 $body = ConvertTo-Json $data
-$publishResponse = Invoke-AzRestMethod -Path "$baseUri/portalRevisions/$($revision)?api-version=2019-12-01" -Method PUT -Payload $body
+$publishResponse = Invoke-AzRestMethod -Path "$baseUri/portalRevisions/$($revision)?api-version=$apiVersion" -Method PUT -Payload $body
 $publishResponse
 
 if (202 -eq $publishResponse.StatusCode) {

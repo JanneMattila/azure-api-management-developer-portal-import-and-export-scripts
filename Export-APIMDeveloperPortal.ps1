@@ -10,6 +10,7 @@ Param (
 )
 
 $ErrorActionPreference = "Stop"
+$apiVersion = "2024-05-01"
 
 "Exporting Azure API Management Developer portal content to: $ExportFolder"
 $mediaFolder = Join-Path -Path $ExportFolder -ChildPath "Media"
@@ -23,11 +24,11 @@ $baseUri = "subscriptions/$($ctx.Subscription.Id)/resourceGroups/$ResourceGroupN
 $baseUri
 
 $contentItems = @{ }
-$contentTypes = (Invoke-AzRestMethod -Path "$baseUri/contentTypes?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
+$contentTypes = (Invoke-AzRestMethod -Path "$baseUri/contentTypes?api-version=$apiVersion" -Method GET).Content | ConvertFrom-Json
 
 foreach ($contentTypeItem in $contentTypes.value) {
     $contentTypeItem.id
-    $contentType = (Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=2019-12-01" -Method GET).Content | ConvertFrom-Json
+    $contentType = (Invoke-AzRestMethod -Path "$baseUri/$($contentTypeItem.id)/contentItems?api-version=$apiVersion" -Method GET).Content | ConvertFrom-Json
 
     foreach ($contentItem in $contentType.value) {
         $contentItem.id
@@ -38,7 +39,7 @@ foreach ($contentTypeItem in $contentTypes.value) {
 $contentItems
 $contentItems | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ExportFolder\data.json"
 
-$storage = (Invoke-AzRestMethod -Path "$baseUri/portalSettings/mediaContent/listSecrets?api-version=2019-12-01" -Method POST).Content | ConvertFrom-Json
+$storage = (Invoke-AzRestMethod -Path "$baseUri/portalSettings/mediaContent/listSecrets?api-version=$apiVersion" -Method POST).Content | ConvertFrom-Json
 $containerSasUrl = [System.Uri] $storage.containerSasUrl
 $storageAccountName = $containerSasUrl.Host.Split('.')[0]
 $sasToken = $containerSasUrl.Query
