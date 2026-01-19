@@ -131,8 +131,13 @@ $body = ConvertTo-Json $data
 $publishResponse = Invoke-AzRestMethod -Path "$baseUri/portalRevisions/$($revision)?api-version=$apiVersion" -Method PUT -Payload $body
 $publishResponse
 
+if (201 -eq $publishResponse.StatusCode) {
+    "Developer portal publish is pending and will complete asynchronously"
+    return
+}
+
 if (202 -eq $publishResponse.StatusCode) {
-    "Import completed"
+    "Developer portal published successfully"
     return
 }
 
